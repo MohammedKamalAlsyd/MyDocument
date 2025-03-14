@@ -10,6 +10,7 @@ import {
 } from "@react-pdf/renderer";
 import RubicFont from "./fonts/Iura6YBj_oCad4k1rzaLCr5IlLA.ttf";
 import { parse } from "node-html-parser";
+import { Table, TR, TH, TD } from "@ag-media/react-pdf-table";
 
 // Register font (update with your actual font source)
 Font.register({
@@ -107,20 +108,6 @@ const styles = StyleSheet.create({
   checked: {
     backgroundColor: "#000",
   },
-  tableRow: {
-    flexDirection: "row",
-    marginBottom: 5,
-  },
-  tableCell: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderStyle: "solid",
-    padding: 8,
-    flex: 1,
-  },
-  tableHeader: {
-    backgroundColor: "#f5f5f5",
-  },
   divider: {
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
@@ -130,7 +117,7 @@ const styles = StyleSheet.create({
 });
 
 /**
- * Process HTML content and replace <span> markers with the answer text.
+ * Process HTML content and replace <span> markers with answer text.
  */
 const processDefaultContent = (html, answers = {}) => {
   if (!html || typeof html !== "string") return "";
@@ -170,45 +157,114 @@ const processDefaultContent = (html, answers = {}) => {
   return root.childNodes.map(traverse).join(" ").trim();
 };
 
-// Render a table from HTML content.
+/**
+ * Render a table from HTML content using @ag-media/react-pdf-table.
+ * This function parses the HTML table and maps each row and cell with explicit borders.
+ */
 const renderTable = (html, answers) => {
   const root = parse(html);
-  const table = root.querySelector("table");
-  if (!table) return null;
-  const rows = table.querySelectorAll("tr");
+  // Try both "table" and "TABLE"
+  const tableElement =
+    root.querySelector("table") || root.querySelector("TABLE");
+  if (!tableElement) return null;
+  // Get rows (TR) in a case-insensitive way.
+  const rows = tableElement.childNodes.filter(
+    (node) => node.tagName && node.tagName.toLowerCase() === "tr"
+  );
   return (
-    <View style={{ width: "100%", marginBottom: 10 }}>
+    <Table
+      tdStyle={{
+        padding: "4px",
+        borderWidth: 1,
+        borderColor: "#ddd",
+        borderStyle: "solid",
+      }}
+      style={{
+        width: "100%",
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: "#ddd",
+        borderStyle: "solid",
+      }}
+    >
       {rows.map((row, rowIndex) => {
-        const cells = row.querySelectorAll("th, td");
-        return (
-          <View key={rowIndex} style={[styles.tableRow, { width: "100%" }]}>
-            {cells.map((cell, cellIndex) => {
-              const cellContent = processDefaultContent(
-                cell.innerHTML,
-                answers
-              );
-              const isHeader = cell.tagName.toLowerCase() === "th";
-              return (
-                <View
-                  key={cellIndex}
-                  style={[styles.tableCell, isHeader && styles.tableHeader]}
-                >
-                  <Text
+        // Check for header cells.
+        const headerCells = row.childNodes.filter(
+          (node) => node.tagName && node.tagName.toLowerCase() === "th"
+        );
+        if (headerCells.length > 0) {
+          return (
+            <TH
+              key={rowIndex}
+              style={{
+                borderWidth: 1,
+                borderColor: "#ddd",
+                borderStyle: "solid",
+              }}
+            >
+              {headerCells.map((cell, cellIndex) => {
+                const cellContent = processDefaultContent(
+                  cell.innerHTML,
+                  answers
+                );
+                return (
+                  <TD
+                    key={cellIndex}
                     style={{
-                      fontSize: 12,
-                      textAlign: "center",
-                      wordBreak: "break-word",
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      borderStyle: "solid",
+                      padding: "4px",
                     }}
                   >
-                    {cellContent || "[No Content]"}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        );
+                    <Text style={{ fontSize: 12, textAlign: "center" }}>
+                      {cellContent || "[No Content]"}
+                    </Text>
+                  </TD>
+                );
+              })}
+            </TH>
+          );
+        } else {
+          // Otherwise, treat as data cells.
+          const dataCells = row.childNodes.filter(
+            (node) => node.tagName && node.tagName.toLowerCase() === "td"
+          );
+          return (
+            <TR
+              key={rowIndex}
+              style={{
+                borderWidth: 1,
+                borderColor: "#ddd",
+                borderStyle: "solid",
+              }}
+            >
+              {dataCells.map((cell, cellIndex) => {
+                const cellContent = processDefaultContent(
+                  cell.innerHTML,
+                  answers
+                );
+                return (
+                  <TD
+                    key={cellIndex}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: "#ddd",
+                      borderStyle: "solid",
+                      padding: "4px",
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, textAlign: "center" }}>
+                      {cellContent || "[No Content]"}
+                    </Text>
+                  </TD>
+                );
+              })}
+            </TR>
+          );
+        }
       })}
-    </View>
+    </Table>
   );
 };
 
@@ -244,9 +300,14 @@ const renderMCQ = (block, userAnswer, isRTL) => {
 };
 
 // Render Essay block with answer preview inside a bordered box.
+// If the answer marker appears in a default block, we will also wrap it in a box.
 const renderEssay = (block, userAnswer, isRTL) => {
-  const answerText = userAnswer
-    ? processDefaultContent(userAnswer)
+  const rawAnswer =
+    userAnswer && typeof userAnswer === "object"
+      ? userAnswer["essay-0"] || Object.values(userAnswer).join(" ")
+      : userAnswer;
+  const answerText = rawAnswer
+    ? processDefaultContent(rawAnswer)
     : "No answer provided";
   return (
     <View style={styles.answerBox}>
@@ -280,11 +341,27 @@ const renderMediaPlaceholder = (label, block) => {
 const renderBlock = (block, questionAnswers, isRTL) => {
   const blockId = block.blockId;
   const userAnswer = blockId ? questionAnswers[blockId] : null;
-
   switch (block.type) {
     case "default":
-      if (block.content && block.content.toLowerCase().includes("<table>")) {
+      if (block.content && block.content.toLowerCase().includes("<table")) {
         return renderTable(block.content, questionAnswers);
+      } else if (
+        block.content.toLowerCase().includes('data-question-type="essay"')
+      ) {
+        // Wrap default block containing an essay marker inside a bounding box.
+        const processedText = processDefaultContent(
+          block.content,
+          questionAnswers
+        );
+        return (
+          <View style={styles.answerBox}>
+            <Text
+              style={[styles.text, { textAlign: isRTL ? "right" : "left" }]}
+            >
+              {processedText || "[No Content]"}
+            </Text>
+          </View>
+        );
       } else {
         const processedText = processDefaultContent(
           block.content,
