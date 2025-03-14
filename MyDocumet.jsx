@@ -86,14 +86,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#000",
     borderStyle: "solid",
-    padding: 10,
-    marginTop: 10,
+    padding: 5,
     borderRadius: 5,
     backgroundColor: "#fff",
+    margin: 5,
   },
   choiceItem: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 5,
   },
   checkbox: {
@@ -138,9 +138,7 @@ const processDefaultContent = (html, answers = {}) => {
           case "blank":
             return userAnswer ? `[${userAnswer}]` : "[No Answer]";
           case "essay":
-            return userAnswer
-              ? `Answer: ${parse(userAnswer).text}`
-              : "[No Answer]";
+            return userAnswer ? `${parse(userAnswer).text}` : "[No Answer]";
           case "file_upload":
             return userAnswer
               ? `[Uploaded File: ${userAnswer.split("/").pop()}]`
