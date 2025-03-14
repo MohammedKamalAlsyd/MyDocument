@@ -26,6 +26,7 @@ const styles = StyleSheet.create({
   section: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
+    borderStyle: "solid",
     borderRadius: 8,
     marginBottom: 20,
     backgroundColor: "#fafafa",
@@ -36,12 +37,14 @@ const styles = StyleSheet.create({
     padding: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
+    borderStyle: "solid",
   },
   header: {
     marginBottom: 20,
     paddingBottom: 10,
     borderBottomWidth: 2,
     borderBottomColor: "#333",
+    borderStyle: "solid",
   },
   title: {
     fontSize: 18,
@@ -80,7 +83,8 @@ const styles = StyleSheet.create({
   },
   answerBox: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#000",
+    borderStyle: "solid",
     padding: 10,
     marginTop: 10,
     borderRadius: 5,
@@ -96,6 +100,7 @@ const styles = StyleSheet.create({
     height: 10,
     borderWidth: 1,
     borderColor: "#000",
+    borderStyle: "solid",
     marginRight: 8,
     marginLeft: 8,
   },
@@ -104,10 +109,12 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: "row",
+    marginBottom: 5,
   },
   tableCell: {
     borderWidth: 1,
     borderColor: "#ddd",
+    borderStyle: "solid",
     padding: 8,
     flex: 1,
   },
@@ -117,26 +124,22 @@ const styles = StyleSheet.create({
   divider: {
     borderBottomWidth: 1,
     borderBottomColor: "#eee",
+    borderStyle: "solid",
     marginVertical: 10,
   },
 });
 
 /**
- * Extract text content from an HTML string.
- * This function traverses all nodes and replaces any <span> markers (for blank, essay, file_upload)
- * with the appropriate answer text.
+ * Process HTML content and replace <span> markers with the answer text.
  */
 const processDefaultContent = (html, answers = {}) => {
   if (!html || typeof html !== "string") return "";
   const root = parse(html);
-  // Recursive function to traverse a node.
   const traverse = (node) => {
     if (node.nodeType === 3) {
-      // Text node.
       return node.rawText;
     }
     if (node.nodeType === 1) {
-      // Check if this element is an answer marker.
       if (
         node.tagName.toLowerCase() === "span" &&
         node.getAttribute("data-question-type")
@@ -159,7 +162,6 @@ const processDefaultContent = (html, answers = {}) => {
             return "[Unsupported Question Type]";
         }
       } else {
-        // Recursively process child nodes.
         return node.childNodes.map(traverse).join(" ");
       }
     }
@@ -175,11 +177,11 @@ const renderTable = (html, answers) => {
   if (!table) return null;
   const rows = table.querySelectorAll("tr");
   return (
-    <View style={{ marginBottom: 10 }}>
+    <View style={{ width: "100%", marginBottom: 10 }}>
       {rows.map((row, rowIndex) => {
         const cells = row.querySelectorAll("th, td");
         return (
-          <View key={rowIndex} style={styles.tableRow}>
+          <View key={rowIndex} style={[styles.tableRow, { width: "100%" }]}>
             {cells.map((cell, cellIndex) => {
               const cellContent = processDefaultContent(
                 cell.innerHTML,
@@ -191,7 +193,13 @@ const renderTable = (html, answers) => {
                   key={cellIndex}
                   style={[styles.tableCell, isHeader && styles.tableHeader]}
                 >
-                  <Text style={{ fontSize: 12, textAlign: "center" }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      textAlign: "center",
+                      wordBreak: "break-word",
+                    }}
+                  >
                     {cellContent || "[No Content]"}
                   </Text>
                 </View>
@@ -235,7 +243,7 @@ const renderMCQ = (block, userAnswer, isRTL) => {
   );
 };
 
-// Render Essay block with answer preview.
+// Render Essay block with answer preview inside a bordered box.
 const renderEssay = (block, userAnswer, isRTL) => {
   const answerText = userAnswer
     ? processDefaultContent(userAnswer)
@@ -259,7 +267,7 @@ const renderBlank = (block, userAnswer, isRTL) => {
   );
 };
 
-// Media placeholders: Render a placeholder for images, audio, video, downloadable, and file uploads.
+// Media placeholders: Render a placeholder for various media types.
 const renderMediaPlaceholder = (label, block) => {
   return (
     <Text style={styles.text}>
@@ -270,7 +278,6 @@ const renderMediaPlaceholder = (label, block) => {
 
 // Main block rendering function.
 const renderBlock = (block, questionAnswers, isRTL) => {
-  // Use block.blockId (if available) to extract the answer.
   const blockId = block.blockId;
   const userAnswer = blockId ? questionAnswers[blockId] : null;
 
@@ -312,7 +319,7 @@ const renderBlock = (block, questionAnswers, isRTL) => {
   }
 };
 
-// Main Document component. All parameters remain unchanged.
+// Main Document component. Parameters remain unchanged.
 const MyDocument = ({
   profile,
   exams = [],
@@ -511,7 +518,6 @@ const MyDocument = ({
     </Document>
   );
 
-  // If preview prop is true, wrap the content in a PDFViewer.
   if (preview) {
     return (
       <PDFViewer style={{ width: "100%", height: "100vh" }}>
