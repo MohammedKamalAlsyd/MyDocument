@@ -10,7 +10,13 @@ import {
 } from "@react-pdf/renderer";
 import RubicFont from "./fonts/Iura6YBj_oCad4k1rzaLCr5IlLA.ttf";
 import { parse } from "node-html-parser";
-import { Table, TR, TH, TD } from "@ag-media/react-pdf-table";
+import {
+  Table,
+  TableHeader,
+  TableCell,
+  TableBody,
+  DataTableCell,
+} from "@david.kucsai/react-pdf-table";
 
 // Register font (update with your actual font source)
 Font.register({
@@ -160,23 +166,62 @@ const processDefaultContent = (html, answers = {}) => {
  * This function parses the HTML table and maps each row and cell with explicit borders.
  */
 const renderTable = (html, answers) => {
+  // Parse the HTML content using node-html-parser.
   const root = parse(html);
-  // Try both "table" and "TABLE"
+  // Find the table element (case-insensitive).
   const tableElement =
     root.querySelector("table") || root.querySelector("TABLE");
   if (!tableElement) return null;
-  // Get rows (TR) in a case-insensitive way.
-  const rows = tableElement.childNodes.filter(
-    (node) => node.tagName && node.tagName.toLowerCase() === "tr"
-  );
+
+  // Get all table rows (<tr>) from the table.
+  const rows = tableElement.querySelectorAll("tr");
+  if (!rows || rows.length === 0) return null;
+
+  let headerRow = null;
+  let headers = [];
+  let dataRows = [];
+
+  // Look for a row that contains at least one <th>; if found, that row will be the header.
+  headerRow = rows.find((row) => row.querySelector("th"));
+  if (headerRow) {
+    // Extract header text from all <th> cells.
+    headers = headerRow
+      .querySelectorAll("th")
+      .map(
+        (th) => processDefaultContent(th.innerHTML, answers) || "[No Content]"
+      );
+    // Data rows are all rows after the header row.
+    const headerIndex = rows.indexOf(headerRow);
+    dataRows = rows.slice(headerIndex + 1);
+  } else {
+    // If no <th> is found, assume the first row contains header cells (<td>).
+    headerRow = rows[0];
+    headers = headerRow
+      .querySelectorAll("td")
+      .map(
+        (td) => processDefaultContent(td.innerHTML, answers) || "[No Content]"
+      );
+    // The remaining rows are considered data rows.
+    dataRows = rows.slice(1);
+  }
+
+  // Construct the data array where each object maps header names to cell content.
+  const data = dataRows.map((row) => {
+    const cells = row.querySelectorAll("td");
+    let rowData = {};
+    cells.forEach((cell, index) => {
+      // Use header text as the key; if header is missing, fallback to a generated key.
+      const key = headers[index] || `col${index}`;
+      rowData[key] =
+        processDefaultContent(cell.innerHTML, answers) || "[No Content]";
+    });
+    return rowData;
+  });
+
+  // Render the table using the new library's declarative components.
   return (
     <Table
-      tdStyle={{
-        padding: "4px",
-        borderWidth: 1,
-        borderColor: "#ddd",
-        borderStyle: "solid",
-      }}
+      data={data}
       style={{
         width: "100%",
         marginBottom: 10,
@@ -184,84 +229,26 @@ const renderTable = (html, answers) => {
         borderColor: "#ddd",
         borderStyle: "solid",
       }}
+      tdStyle={{
+        padding: "4px",
+        borderWidth: 1,
+        borderColor: "#ddd",
+        borderStyle: "solid",
+      }}
     >
-      {rows.map((row, rowIndex) => {
-        // Check for header cells.
-        const headerCells = row.childNodes.filter(
-          (node) => node.tagName && node.tagName.toLowerCase() === "th"
-        );
-        if (headerCells.length > 0) {
-          return (
-            <TH
-              key={rowIndex}
-              style={{
-                borderWidth: 1,
-                borderColor: "#ddd",
-                borderStyle: "solid",
-              }}
-            >
-              {headerCells.map((cell, cellIndex) => {
-                const cellContent = processDefaultContent(
-                  cell.innerHTML,
-                  answers
-                );
-                return (
-                  <TD
-                    key={cellIndex}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: "#ddd",
-                      borderStyle: "solid",
-                      padding: "4px",
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, textAlign: "center" }}>
-                      {cellContent || "[No Content]"}
-                    </Text>
-                  </TD>
-                );
-              })}
-            </TH>
-          );
-        } else {
-          // Otherwise, treat as data cells.
-          const dataCells = row.childNodes.filter(
-            (node) => node.tagName && node.tagName.toLowerCase() === "td"
-          );
-          return (
-            <TR
-              key={rowIndex}
-              style={{
-                borderWidth: 1,
-                borderColor: "#ddd",
-                borderStyle: "solid",
-              }}
-            >
-              {dataCells.map((cell, cellIndex) => {
-                const cellContent = processDefaultContent(
-                  cell.innerHTML,
-                  answers
-                );
-                return (
-                  <TD
-                    key={cellIndex}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: "#ddd",
-                      borderStyle: "solid",
-                      padding: "4px",
-                    }}
-                  >
-                    <Text style={{ fontSize: 12, textAlign: "center" }}>
-                      {cellContent || "[No Content]"}
-                    </Text>
-                  </TD>
-                );
-              })}
-            </TR>
-          );
-        }
-      })}
+      {/* Table Header */}
+      <TableHeader textAlign="center">
+        {headers.map((header, idx) => (
+          <TableCell key={idx}>{header}</TableCell>
+        ))}
+      </TableHeader>
+
+      {/* Table Body */}
+      <TableBody>
+        {headers.map((header, idx) => (
+          <DataTableCell key={idx} getContent={(row) => row[header]} />
+        ))}
+      </TableBody>
     </Table>
   );
 };
